@@ -39,8 +39,8 @@ using namespace std;
 
 class AdjacencyMatrix {
 	bool* C;
-	int n;
 public:
+	int n;
 	AdjacencyMatrix(const char* filename) {
 		int stage = 0;
 		int a, b = 0;
@@ -116,10 +116,8 @@ public:
 typedef bool* LocationVector;
 typedef int* GainVector;
 
-LocationVector V;
-GainVector D;
-
-GainVector initializeDValues(AdjacencyMatrix& m, int n) {
+GainVector initializeDValues(AdjacencyMatrix& m, LocationVector& V) {
+	int n = m.n;
 	GainVector D = new int[n];
 	for(int i = 0; i < n; i++) {
 		bool setOfi = V[i];
@@ -138,6 +136,24 @@ GainVector initializeDValues(AdjacencyMatrix& m, int n) {
 	return D;
 }
 
+LocationVector randomVector(int n, int seed) {
+	srand(seed);
+	LocationVector V = new bool[n];
+	for(int i = 0; i < n; i++) {
+		V[i] = false;
+	}
+	int n2 = (int)(n/2);
+	int rand_index = 0;
+	for(int i = 0; i < n2;) {
+		rand_index = rand() % n;
+		if(!V[rand_index]) {
+			V[rand_index] = true;
+			i++;
+		}
+	}
+	return V;
+}
+
 int main (int argc, char * const argv[]) {
     cout << "Reading file..." << endl;
 	char* filename = "../../input.txt";
@@ -145,5 +161,23 @@ int main (int argc, char * const argv[]) {
 		filename = argv[1];
 	AdjacencyMatrix* C = new AdjacencyMatrix(filename);
 	C->prettyPrint();
+
+	int n = C->n;
+	LocationVector V = randomVector(n, 72);
+	cout << "V: ";
+	for(int i = 0; i < n; i++) {
+		char buffer[4]; sprintf(buffer, "%3d", V[i]);
+		cout << buffer << " ";
+	}
+	cout << endl;
+	
+	GainVector D = initializeDValues(*C, V);
+	cout << "D: ";
+	for(int i = 0; i < n; i++) {
+		char buffer[4]; sprintf(buffer, "%3d", D[i]);
+		cout << buffer << " ";
+	}
+	cout << endl;	
+	
     return 0;
 }
