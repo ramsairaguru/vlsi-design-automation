@@ -39,26 +39,66 @@ using namespace std;
 
 class AdjacencyMatrix {
 	bool* C;
-public:
 	int n;
-	AdjacencyMatrix(int _n) {
-		n = _n;
-		C = new bool[_n*_n];
-		// Fill the upper-triangular with false values
-		for(int i = 0; i < _n; i++) {
-			for(int j = i; j < _n; j++) {
-				C[i*n+j] = false;
+public:
+	AdjacencyMatrix(const char* filename) {
+		int stage = 0;
+		int a, b = 0;
+		string line;
+		ifstream infile(filename);
+		if (infile.is_open())
+		{
+			while (infile.good() )
+			{
+				getline(infile,line);
+				switch(stage) {
+					case 0:
+						if(sscanf(line.c_str(),"%d",&n) == EOF) {
+							cout << "Could not find number of nodes in file." << endl;
+							exit(1);
+						}
+						C = new bool[n*n];
+						// Fill the upper-triangular with false values
+						for(int i = 0; i < n; i++) {
+							for(int j = i; j < n; j++) {
+								C[i*n+j] = false;
+							}
+						}
+						stage = 1;
+						break;
+					case 1:
+						// Ignore the number of nets
+						stage = 2;
+						break;
+					case 2:
+						if(sscanf(line.c_str(),"%d %d",&a, &b) == EOF) {
+							cout << "Malformed netlist line: " << line << endl;
+							exit(2);
+						}
+						// Convert 1-based to 0-based
+						setCost(a-1, b-1, true);
+						break;
+					default:
+						cout << "Invalid parse stage reached!";
+						exit(3);
+						break;
+				}
 			}
+			infile.close();
 		}
+		else cout << "Unable to open file" << endl;
 	}
+	
 	bool getCost(int i, int j) {
 		// Only use the upper-triangular of the matrix
 		return C[min(i, j)*n+max(i, j)];
 	}
+	
 	void setCost(int i, int j, bool b) {
 		// Only use the upper-triangular of the matrix
 		C[min(i, j)*n+max(i, j)] = b;
 	}
+	
 	void prettyPrint() {
 		for(int i = 0; i < n; i++) {
 			for(int j = 0; j < n; j++) {
@@ -98,56 +138,12 @@ GainVector initializeDValues(AdjacencyMatrix& m, int n) {
 	return D;
 }
 
-AdjacencyMatrix* parseInput(const char* filename) {
-	AdjacencyMatrix* C = NULL;
-	int stage = 0;
-	int n, a, b = 0;
-	string line;
-	ifstream infile(filename);
-	if (infile.is_open())
-	{
-		while (infile.good() )
-		{
-			getline(infile,line);
-			switch(stage) {
-				case 0:
-					if(sscanf(line.c_str(),"%d",&n) == EOF) {
-						cout << "Could not find number of nodes in file." << endl;
-						exit(1);
-					}
-					C = new AdjacencyMatrix(n);
-					stage = 1;
-					break;
-				case 1:
-					// Ignore the number of nets
-					stage = 2;
-					break;
-				case 2:
-					if(sscanf(line.c_str(),"%d %d",&a, &b) == EOF) {
-						cout << "Malformed netlist line: " << line << endl;
-						exit(2);
-					}
-					// Convert 1-based to 0-based
-					C->setCost(a-1, b-1, true);
-					break;
-				default:
-					cout << "Invalid parse stage reached!";
-					exit(3);
-					break;
-			}
-		}
-		infile.close();
-	}
-	else cout << "Unable to open file" << endl;
-	return C;
-}
-
 int main (int argc, char * const argv[]) {
     cout << "Reading file..." << endl;
 	char* filename = "../../input.txt";
 	if(argc > 1)
 		filename = argv[1];
-	AdjacencyMatrix* C = parseInput(filename);
+	AdjacencyMatrix* C = new AdjacencyMatrix(filename);
 	C->prettyPrint();
     return 0;
 }
