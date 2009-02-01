@@ -39,7 +39,7 @@ using namespace std;
 //   Endif
 
 class AdjacencyMatrix {
-	vector<bool> C;
+	vector<unsigned short> C;
 public:
 	int n;
 	AdjacencyMatrix(const char* filename) {
@@ -58,7 +58,7 @@ public:
 							cout << "Could not find number of nodes in file." << endl;
 							exit(1);
 						}
-						C = vector<bool>(n*n, false);
+						C.assign(n*n, 0);
 						stage = 1;
 						break;
 					case 1:
@@ -67,11 +67,13 @@ public:
 						break;
 					case 2:
 						if(sscanf(line.c_str(),"%d %d",&a, &b) == EOF) {
-							cout << "Malformed netlist line: " << line << endl;
-							exit(2);
+							cout << "Ignoring Malformed netlist line: " << line << endl;
+							break;
 						}
 						// Convert 1-based to 0-based
-						setCost(a-1, b-1, true);
+						a--;
+						b--;
+						C[min(a, b)*n+max(a, b)]++;
 						break;
 					default:
 						cout << "Invalid parse stage reached!";
@@ -84,7 +86,7 @@ public:
 		else cout << "Unable to open file" << endl;
 	}
 	
-	bool getCost(int i, int j) {
+	unsigned short getCost(int i, int j) {
 		// Only use the upper-triangular of the matrix
 		return C[min(i, j)*n+max(i, j)];
 	}
@@ -95,7 +97,13 @@ public:
 	}
 	
 	void prettyPrint() {
+		cout << "  ";
 		for(int i = 0; i < n; i++) {
+			cout << i << " ";
+		}
+		cout << endl;
+		for(int i = 0; i < n; i++) {
+			cout << i << " ";
 			for(int j = 0; j < n; j++) {
 				if(j < i)
 					cout << "  ";
@@ -157,10 +165,12 @@ void initializeDValues(GainVector& D, LocationVector& V, AdjacencyMatrix& C) {
 int computeCutset(AdjacencyMatrix& C, LocationVector& V) {
 	int total = 0;
 	int n = C.n;
+	int cost = 0;
 	for(int i = 0; i < n; i++) {
 		for(int j = i; j < n; j++) {
-			if(V[i] != V[j] and C.getCost(i, j))
-				total++;
+			cost = C.getCost(i, j);
+			if(V[i] != V[j] and cost != 0)
+				total+= cost;
 		}
 	}
 	return total;
@@ -183,6 +193,35 @@ void choosePair(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVe
 			}
 		}
 	}
+}
+
+void choosePairGreedy(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVector& D, vector<bool>& locks) {
+	int n = C.n;
+	int bestA = -1;
+	int bestB = -1;
+	int Da = INT_MIN;
+	int Db = INT_MIN;
+	int Di = INT_MIN;
+	for(int i = 0; i < n; i++) {
+		if(locks[i]) continue;
+		Di = D[i];
+		if(V[i]) {
+			// Set B
+			if(Di > Db) {
+				Db = Di;
+				bestB = i;
+			}
+		} else {
+			// Set A
+			if(Di > Da) {
+				Da = Di;
+				bestA = i;
+			}
+		}
+	}
+	gi.indexA = bestA;
+	gi.indexB = bestB;
+	gi.netGain = (Da + Db) - (2 * C.getCost(bestA, bestB));
 }
 
 void recalculateD(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVector& D, vector<bool>& locks) {
@@ -208,7 +247,7 @@ int main (int argc, char * const argv[]) {
 	
     // Parse the input file into the adjacency matrix
 	//cout << "Reading file..." << endl;
-	char* filename = "../../input.txt";
+	char* filename = "../../benchmarks/bench_23.net";
 	if(argc > 1)
 		filename = argv[1];
 	
@@ -226,12 +265,14 @@ int main (int argc, char * const argv[]) {
 	// Create a random starting solution
 	cout << "Creating a random starting solution..." << endl;
 	randomizeVector(V);
+	/*
 	cout << "V: ";
 	for(int i = 0; i < n; i++) {
 		char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
 		cout << buffer << " ";
 	}
 	cout << endl;
+	*/
 	
 	int maxTotalGain = 1;
 	for(int generation = 0; maxTotalGain > 0; generation++) {
@@ -256,8 +297,8 @@ int main (int argc, char * const argv[]) {
 		for(int iteration = 0; iteration < n2; iteration++) {
 			//cout << "Choosing best-gain pair..." << endl;
 			GainQueueItem gi(0, 0, INT_MIN);
-			choosePair(gi, C, V, D, locks);
-			//cout << "Chose: " << gi.indexA << "," << gi.indexB << ": " << gi.netGain << endl << endl;
+			choosePairGreedy(gi, C, V, D, locks);
+			cout << "Chose: " << gi.indexA << "," << gi.indexB << ": " << gi.netGain << endl << endl;
 			// Lock the selected nodes for this iteration
 			locks[gi.indexA] = true;
 			locks[gi.indexB] = true;
@@ -296,12 +337,14 @@ int main (int argc, char * const argv[]) {
 				V[gi.indexA].flip();
 				V[gi.indexB].flip();
 			}
+			/*
 			cout << "V: ";
 			for(int i = 0; i < n; i++) {
 				char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
 				cout << buffer << " ";
 			}
 			cout << endl;
+			*/
 			cout << "Current cutset: " << computeCutset(C, V) << endl << endl;
 		}
 		// Unlock all nodes
