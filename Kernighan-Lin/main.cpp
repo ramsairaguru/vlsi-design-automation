@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 using namespace std;
 
 // Step 1:
@@ -12,7 +13,7 @@ using namespace std;
 //   Compute Dv for all v in V
 //   Initialize variables:
 //     queue = null;
-//     i = 1;
+//     iteration = 1;
 //     A' = A;
 //     B' = B;
 
@@ -26,7 +27,7 @@ using namespace std;
 //   If A' and B' are both empty then goto Step 5
 //   Else
 //     Re-calculate D-values for A' union B'
-//     Increment i and goto Step 3
+//     Increment iteration and goto Step 3
 //   Endif
 
 // Step 5:
@@ -38,7 +39,7 @@ using namespace std;
 //   Endif
 
 class AdjacencyMatrix {
-	bool* C;
+	vector<bool> C;
 public:
 	int n;
 	AdjacencyMatrix(const char* filename) {
@@ -57,13 +58,7 @@ public:
 							cout << "Could not find number of nodes in file." << endl;
 							exit(1);
 						}
-						C = new bool[n*n];
-						// Fill the upper-triangular with false values
-						for(int i = 0; i < n; i++) {
-							for(int j = i; j < n; j++) {
-								C[i*n+j] = false;
-							}
-						}
+						C = vector<bool>(n*n, false);
 						stage = 1;
 						break;
 					case 1:
@@ -112,46 +107,62 @@ public:
 		}		
 	}
 };
+class Node {
+public:
+	bool set;
+	int id, D;
+	vector<int> connections;
+	
+	Node(int _id) {
+		set = 0;
+		id = _id;
+		D = 0;
+	}
+	bool operator<(Node other) {
+		return D < other.D;
+	}
+};
+struct GainVectorItem {
+	int indexA;
+	int indexB;
+	int runningTotal;
+};
+typedef vector<bool> LocationVector;
+typedef vector<int> GainVector;
 
-typedef bool* LocationVector;
-typedef int* GainVector;
-
-GainVector initializeDValues(AdjacencyMatrix& m, LocationVector& V) {
+GainVector& initializeDValues(AdjacencyMatrix& m, LocationVector& V) {
 	int n = m.n;
-	GainVector D = new int[n];
+	GainVector* D = new GainVector(n, 0);
 	for(int i = 0; i < n; i++) {
 		bool setOfi = V[i];
 		int Di = 0;
 		for(int j = 0; j < n; j++) {
 			int cij = m.getCost(i, j);
 			if( V[j] == setOfi ) {
-				Di += cij;
-			}
-			else {
 				Di -= cij;
 			}
+			else {
+				Di += cij;
+			}
 		}
-		D[i] = Di;
+		D->at(i) = Di;
 	}
-	return D;
+	return *D;
 }
 
-LocationVector randomVector(int n, int seed) {
+LocationVector& randomVector(int n, int seed) {
 	srand(seed);
-	LocationVector V = new bool[n];
-	for(int i = 0; i < n; i++) {
-		V[i] = false;
-	}
+	LocationVector* V = new LocationVector(n, false);
 	int n2 = (int)(n/2);
 	int rand_index = 0;
 	for(int i = 0; i < n2;) {
 		rand_index = rand() % n;
-		if(!V[rand_index]) {
-			V[rand_index] = true;
+		if(!V->at(rand_index)) {
+			V->at(rand_index) = true;
 			i++;
 		}
 	}
-	return V;
+	return *V;
 }
 
 int main (int argc, char * const argv[]) {
@@ -161,23 +172,48 @@ int main (int argc, char * const argv[]) {
 		filename = argv[1];
 	AdjacencyMatrix* C = new AdjacencyMatrix(filename);
 	C->prettyPrint();
-
+	
 	int n = C->n;
+	// Create all the Node objects
+	vector<Node> nodes;
+	for(int i = 0; i < n; i++) {
+		nodes.push_back(Node(i));
+	}
+	cout << "Creating a random starting solution..." << endl;
 	LocationVector V = randomVector(n, 72);
 	cout << "V: ";
 	for(int i = 0; i < n; i++) {
-		char buffer[4]; sprintf(buffer, "%3d", V[i]);
+		char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
 		cout << buffer << " ";
 	}
 	cout << endl;
 	
+    cout << "Initializing D values..." << endl;
 	GainVector D = initializeDValues(*C, V);
 	cout << "D: ";
 	for(int i = 0; i < n; i++) {
 		char buffer[4]; sprintf(buffer, "%3d", D[i]);
 		cout << buffer << " ";
 	}
-	cout << endl;	
+	cout << endl;
 	
+	cout << "Initializing Variables..." << endl;
+	int n2 = (int)(n/2);
+	GainVectorItem GainVector[n2];
+	for(int generation = 0; generation < 100; generation++) {
+		int maxTotalGain = 0;
+		int maxTotalGainIndex = 0;
+		
+		int iteration = 0;
+		bool locks[n];
+		for(int i = 0; i < n; i++) {
+			locks[i] = false;
+		}
+		
+		// Step 3 and 4
+		for(int iteration = 0; iteration < n2; iteration++) {
+			
+		}
+	}
     return 0;
 }
