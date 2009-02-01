@@ -107,37 +107,42 @@ public:
 		}		
 	}
 };
-class Node {
-public:
-	bool set;
-	int id, D;
-	vector<int> connections;
-	
-	Node(int _id) {
-		set = 0;
-		id = _id;
-		D = 0;
-	}
-	bool operator<(Node other) {
-		return D < other.D;
-	}
-};
-struct GainVectorItem {
-	int indexA;
-	int indexB;
-	int runningTotal;
-};
 typedef vector<bool> LocationVector;
 typedef vector<int> GainVector;
+class GainQueueItem {
+public:
+	int indexA;
+	int indexB;
+	int netGain;
+	GainQueueItem(int A, int B, int gain) {
+		indexA = A;
+		indexB = B;
+		netGain = gain;
+	}
+};
+typedef vector<GainQueueItem> GainQueue;
 
-GainVector& initializeDValues(AdjacencyMatrix& m, LocationVector& V) {
-	int n = m.n;
-	GainVector* D = new GainVector(n, 0);
+void randomizeVector(LocationVector& V) {
+	int n = V.size();
+	int n2 = (int)(n/2);
+	int rand_index = 0;
+	for(int i = 0; i < n2;) {
+		rand_index = rand() % n;
+		if(!V[rand_index]) {
+			V[rand_index] = true;
+			i++;
+		}
+	}
+}
+
+void initializeDValues(GainVector& D, LocationVector& V, AdjacencyMatrix& C) {
+	D.clear();
+	int n = C.n;
 	for(int i = 0; i < n; i++) {
 		bool setOfi = V[i];
 		int Di = 0;
 		for(int j = 0; j < n; j++) {
-			int cij = m.getCost(i, j);
+			int cij = C.getCost(i, j);
 			if( V[j] == setOfi ) {
 				Di -= cij;
 			}
@@ -145,42 +150,82 @@ GainVector& initializeDValues(AdjacencyMatrix& m, LocationVector& V) {
 				Di += cij;
 			}
 		}
-		D->at(i) = Di;
+		D.push_back(Di);
 	}
-	return *D;
 }
 
-LocationVector& randomVector(int n, int seed) {
-	srand(seed);
-	LocationVector* V = new LocationVector(n, false);
-	int n2 = (int)(n/2);
-	int rand_index = 0;
-	for(int i = 0; i < n2;) {
-		rand_index = rand() % n;
-		if(!V->at(rand_index)) {
-			V->at(rand_index) = true;
-			i++;
+int computeCutset(AdjacencyMatrix& C, LocationVector& V) {
+	int total = 0;
+	int n = C.n;
+	for(int i = 0; i < n; i++) {
+		for(int j = i; j < n; j++) {
+			if(V[i] != V[j] and C.getCost(i, j))
+				total++;
 		}
 	}
-	return *V;
+	return total;
+}
+
+void choosePair(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVector& D, vector<bool>& locks) {
+	int n = C.n;
+	for(int i = 0; i < n; i++) {
+		if(locks[i]) continue;
+		bool set = V[i];
+		for(int j = i + 1; j < n; j++) {
+			if(locks[j] or set == V[j]) continue;
+			int gab = (D[i] + D[j]) - (2 * C.getCost(i, j));
+			//cout << "g" << i << "," << j << ": " << gab << endl;
+			if(gab > gi.netGain) {
+				// Found a better candidate
+				gi.indexA = i;
+				gi.indexB = j;
+				gi.netGain = gab;
+			}
+		}
+	}
+}
+
+void recalculateD(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVector& D, vector<bool>& locks) {
+	int A = gi.indexA;
+	int B = gi.indexB;
+	for(int i = 0; i < C.n; i++) {
+		if(locks[i]) continue;
+		int cia = C.getCost(i, A);
+		int cib = C.getCost(i, B);
+		if(cia or cib) {
+			if(V[i] == V[A]) {
+				D[i] += 2*cia - 2*cib;
+			} else {
+				D[i] += 2*cib - 2*cia;
+			}
+		}
+	}
 }
 
 int main (int argc, char * const argv[]) {
-    cout << "Reading file..." << endl;
+	// Set the random seed
+	srand(720);
+	
+    // Parse the input file into the adjacency matrix
+	//cout << "Reading file..." << endl;
 	char* filename = "../../input.txt";
 	if(argc > 1)
 		filename = argv[1];
-	AdjacencyMatrix* C = new AdjacencyMatrix(filename);
-	C->prettyPrint();
 	
-	int n = C->n;
-	// Create all the Node objects
-	vector<Node> nodes;
-	for(int i = 0; i < n; i++) {
-		nodes.push_back(Node(i));
-	}
+	// Declare Variables
+	AdjacencyMatrix C = AdjacencyMatrix(filename);
+	int n = C.n;
+	int n2 = (int)(n/2);
+	GainVector D;	
+	LocationVector V = LocationVector(n, false);
+	GainQueue queue;
+	vector<bool> locks(n, false);
+
+	//C.prettyPrint();
+
+	// Create a random starting solution
 	cout << "Creating a random starting solution..." << endl;
-	LocationVector V = randomVector(n, 72);
+	randomizeVector(V);
 	cout << "V: ";
 	for(int i = 0; i < n; i++) {
 		char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
@@ -188,32 +233,83 @@ int main (int argc, char * const argv[]) {
 	}
 	cout << endl;
 	
-    cout << "Initializing D values..." << endl;
-	GainVector D = initializeDValues(*C, V);
-	cout << "D: ";
-	for(int i = 0; i < n; i++) {
-		char buffer[4]; sprintf(buffer, "%3d", D[i]);
-		cout << buffer << " ";
-	}
-	cout << endl;
-	
-	cout << "Initializing Variables..." << endl;
-	int n2 = (int)(n/2);
-	GainVectorItem GainVector[n2];
-	for(int generation = 0; generation < 100; generation++) {
-		int maxTotalGain = 0;
-		int maxTotalGainIndex = 0;
+	int maxTotalGain = 1;
+	for(int generation = 0; maxTotalGain > 0; generation++) {
+		//cout << "Initializing Generation Variables..." << endl;
+		maxTotalGain = INT_MIN;
+		int maxTotalGainIndex = -1;
+		int currentTotalGain = 0;
 		
-		int iteration = 0;
-		bool locks[n];
+		// Initialize the D values for all nodes
+		//cout << "Initializing D values..." << endl;
+		initializeDValues(D, V, C);
+		/*
+		cout << "D: ";
 		for(int i = 0; i < n; i++) {
-			locks[i] = false;
+			char buffer[4]; sprintf(buffer, "%3d", D[i]);
+			cout << buffer << " ";
 		}
+		cout << endl;
+		 */
 		
 		// Step 3 and 4
 		for(int iteration = 0; iteration < n2; iteration++) {
-			
+			//cout << "Choosing best-gain pair..." << endl;
+			GainQueueItem gi(0, 0, INT_MIN);
+			choosePair(gi, C, V, D, locks);
+			//cout << "Chose: " << gi.indexA << "," << gi.indexB << ": " << gi.netGain << endl << endl;
+			// Lock the selected nodes for this iteration
+			locks[gi.indexA] = true;
+			locks[gi.indexB] = true;
+			// Push the pair onto the queue and see if it's the best subqueue
+			queue.push_back(gi);
+			currentTotalGain += gi.netGain;
+			if(currentTotalGain > maxTotalGain) {
+				maxTotalGain = currentTotalGain;
+				maxTotalGainIndex = iteration;
+			}
+			// Recalculate D values for still-active nodes
+			if(iteration + 1 < n2) {
+				recalculateD(gi, C, V, D, locks);
+				/*
+				 cout << "D: ";
+				for(int i = 0; i < n; i++) {
+					char buffer[4]; sprintf(buffer, "%3d", D[i]);
+					cout << buffer << " ";
+				}
+				cout << endl;
+				*/
+			}
 		}
+		cout << "Queue: " << endl;
+		for(int i = 0; i < queue.size(); i++) {
+			GainQueueItem gi = queue[i];
+			cout << i << " (" << gi.indexA << "," << gi.indexB << "): " << gi.netGain << endl;
+		}
+		cout << "Best Index: " << maxTotalGainIndex << "(" << maxTotalGain << ")" << endl;
+		
+		// Apply the optimum subqueue
+		//cout << "Applying the subqueue..." << endl;
+		if(maxTotalGain > 0) {
+			for(int i = 0; i <= maxTotalGainIndex; i++) {
+				GainQueueItem gi = queue[i];
+				V[gi.indexA].flip();
+				V[gi.indexB].flip();
+			}
+			cout << "V: ";
+			for(int i = 0; i < n; i++) {
+				char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
+				cout << buffer << " ";
+			}
+			cout << endl;
+			cout << "Current cutset: " << computeCutset(C, V) << endl << endl;
+		}
+		// Unlock all nodes
+		locks.assign(n, false);
+		// Clear the queue
+		queue.clear();
+		
 	}
+	cout << "Final cutset: " << computeCutset(C, V) << endl;
     return 0;
 }
