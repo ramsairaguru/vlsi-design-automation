@@ -40,7 +40,7 @@ using namespace std;
 //   Endif
 
 class AdjacencyMatrix {
-	map<unsigned int, unsigned short> C;
+	vector<map<unsigned int, unsigned short> > C;
 public:
 	int n;
 	AdjacencyMatrix(const char* filename) {
@@ -59,6 +59,7 @@ public:
 							cout << "Could not find number of nodes in file." << endl;
 							exit(1);
 						}
+						C.assign(n, map<unsigned int, unsigned short>());
 						stage = 1;
 						break;
 					case 1:
@@ -73,7 +74,7 @@ public:
 						// Convert 1-based to 0-based
 						a--;
 						b--;
-						C[min(a, b)*n+max(a, b)]++;
+						incrementCost(a, b);
 						break;
 					default:
 						cout << "Invalid parse stage reached!";
@@ -86,19 +87,20 @@ public:
 		else cout << "Unable to open file" << endl;
 	}
 	
-	unsigned short getCost(int a, int b) {
+	unsigned short getCost(unsigned int a, unsigned int b) {
 		// Only use the upper-triangular of the matrix
 		map<unsigned int, unsigned short>::iterator i;
-		i = C.find(min(a, b)*n+max(a, b));
-		if(i == C.end())
+		map<unsigned int, unsigned short> row = C[min(a,b)];
+		i = row.find(max(a, b));
+		if(i == row.end())
 			return 0;
 		else
 			return i->second;
 	}
 	
-	void setCost(int a, int b, unsigned short c) {
+	void incrementCost(unsigned int a, unsigned int b) {
 		// Only use the upper-triangular of the matrix
-		C[min(a, b)*n+max(a, b)] = c;
+		C[min(a, b)][max(a, b)]++;
 	}
 	
 	void prettyPrint() {
@@ -173,9 +175,11 @@ int computeCutset(AdjacencyMatrix& C, LocationVector& V) {
 	int cost = 0;
 	for(int i = 0; i < n; i++) {
 		for(int j = i; j < n; j++) {
-			cost = C.getCost(i, j);
-			if(V[i] != V[j] and cost != 0)
-				total+= cost;
+			if(V[i] != V[j]) {
+				cost = C.getCost(i, j);
+				if(cost != 0)
+					total+= cost;
+			}
 		}
 	}
 	return total;
@@ -289,6 +293,8 @@ int main (int argc, char * const argv[]) {
 	cerr << endl;
 	*/
 	
+	// Compute the initial cutset size
+	cerr << "Computing the inital cutset size..." << endl;
 	int cutset = computeCutset(C, V);
 	cerr << "Initial cutset: " << cutset << endl << endl;
 
