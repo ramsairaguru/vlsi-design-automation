@@ -59,7 +59,7 @@ public:
 				switch(stage) {
 					case 0:
 						if(sscanf(line.c_str(),"%d",&n) == EOF) {
-							cout << "Could not find number of nodes in file." << endl;
+							cerr << "Could not find number of nodes in file." << endl;
 							exit(1);
 						}
 						C.assign(n, map<unsigned int, unsigned short>());
@@ -71,7 +71,7 @@ public:
 						break;
 					case 2:
 						if(sscanf(line.c_str(),"%d %d",&a, &b) == EOF) {
-							cout << "Ignoring Malformed netlist line: " << line << endl;
+							//cerr << "Ignoring Malformed netlist line: " << line << endl;
 							break;
 						}
 						// Convert 1-based to 0-based
@@ -80,7 +80,7 @@ public:
 						incrementCost(a, b);
 						break;
 					default:
-						cout << "Invalid parse stage reached!";
+						cerr << "Invalid parse stage reached!";
 						exit(3);
 						break;
 				}
