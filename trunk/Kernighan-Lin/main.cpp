@@ -100,7 +100,7 @@ public:
 	
 	void incrementCost(unsigned int a, unsigned int b) {
 		// Only use the upper-triangular of the matrix
-		C[min(a, b)][max(a, b)]++;
+		C[min(a, b)][max(a, b)] = getCost(a, b) + 1;
 	}
 	
 	void prettyPrint() {
