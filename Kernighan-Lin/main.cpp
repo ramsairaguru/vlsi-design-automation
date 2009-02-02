@@ -39,6 +39,9 @@ using namespace std;
 //   Else STOP
 //   Endif
 
+typedef vector<bool> LocationVector;
+typedef vector<int> GainVector;
+
 class AdjacencyMatrix {
 	vector<map<unsigned int, unsigned short> > C;
 public:
@@ -84,14 +87,16 @@ public:
 			}
 			infile.close();
 		}
-		else cout << "Unable to open file" << endl;
+		else {
+			cout << "Unable to open file" << endl;
+			exit(1);
+		}
 	}
 	
 	unsigned short getCost(unsigned int a, unsigned int b) {
-		// Only use the upper-triangular of the matrix
 		map<unsigned int, unsigned short>::iterator i;
-		map<unsigned int, unsigned short> row = C[min(a,b)];
-		i = row.find(max(a, b));
+		map<unsigned int, unsigned short> row = C[a];
+		i = row.find(b);
 		if(i == row.end())
 			return 0;
 		else
@@ -99,31 +104,62 @@ public:
 	}
 	
 	void incrementCost(unsigned int a, unsigned int b) {
-		// Only use the upper-triangular of the matrix
-		C[min(a, b)][max(a, b)] = getCost(a, b) + 1;
+		// Duplicate in both places
+		C[a][b] = getCost(a, b) + 1;
+		C[b][a] = getCost(b, a) + 1;
 	}
 	
 	void prettyPrint() {
-		cout << "  ";
+		cerr << "  ";
 		for(int i = 0; i < n; i++) {
-			cout << i << " ";
+			cerr << i << " ";
 		}
-		cout << endl;
+		cerr << endl;
 		for(int i = 0; i < n; i++) {
-			cout << i << " ";
+			cerr << i << " ";
 			for(int j = 0; j < n; j++) {
-				if(j < i)
-					cout << "  ";
-				else {
-					cout << getCost(i, j) << " ";
+				cerr << getCost(i, j) << " ";
+			}
+			cerr << endl;
+		}
+	}
+	
+	unsigned int computeCutset(LocationVector& V) {
+		int total = 0;
+		for(int i = 0; i < n; i++) {
+			bool setOfi = V[i];
+			map<unsigned int, unsigned short> row = C[i];
+			for(map<unsigned int, unsigned short>::iterator j = row.begin(); j != row.end(); j++) {
+				unsigned short cost = j->second;
+				if(setOfi != V[j->first] and cost != 0) {
+					total+= cost;
 				}
 			}
-			cout << endl;
-		}		
+		}
+		// Divide by 2 because connections will be counted twice.
+		return total / 2;
+	}
+	
+	void initializeDValues(GainVector& D, LocationVector& V) {
+		D.clear();
+		int Di = 0;
+		for(int i = 0; i < n; i++) {
+			bool setOfi = V[i];
+			Di = 0;
+			map<unsigned int, unsigned short> row = C[i];
+			for(map<unsigned int, unsigned short>::iterator j = row.begin(); j != row.end(); j++) {
+				unsigned short cost = j->second;
+				if(setOfi == V[j->first]) {
+					Di -= cost;
+				}
+				else {
+					Di += cost;
+				}
+			}
+			D.push_back(Di);
+		}
 	}
 };
-typedef vector<bool> LocationVector;
-typedef vector<int> GainVector;
 class GainQueueItem {
 public:
 	int indexA;
@@ -148,41 +184,6 @@ void randomizeVector(LocationVector& V) {
 			i++;
 		}
 	}
-}
-
-void initializeDValues(GainVector& D, LocationVector& V, AdjacencyMatrix& C) {
-	D.clear();
-	int n = C.n;
-	for(int i = 0; i < n; i++) {
-		bool setOfi = V[i];
-		int Di = 0;
-		for(int j = 0; j < n; j++) {
-			int cij = C.getCost(i, j);
-			if( V[j] == setOfi ) {
-				Di -= cij;
-			}
-			else {
-				Di += cij;
-			}
-		}
-		D.push_back(Di);
-	}
-}
-
-int computeCutset(AdjacencyMatrix& C, LocationVector& V) {
-	int total = 0;
-	int n = C.n;
-	int cost = 0;
-	for(int i = 0; i < n; i++) {
-		for(int j = i; j < n; j++) {
-			if(V[i] != V[j]) {
-				cost = C.getCost(i, j);
-				if(cost != 0)
-					total+= cost;
-			}
-		}
-	}
-	return total;
 }
 
 void choosePair(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, GainVector& D, vector<bool>& locks) {
@@ -240,7 +241,7 @@ void recalculateD(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, Gain
 		if(locks[i]) continue;
 		int cia = C.getCost(i, A);
 		int cib = C.getCost(i, B);
-		if(cia or cib) {
+		if(cia != 0 or cib != 0) {
 			if(V[i] == V[A]) {
 				D[i] += 2*cia - 2*cib;
 			} else {
@@ -295,8 +296,10 @@ int main (int argc, char * const argv[]) {
 	
 	// Compute the initial cutset size
 	cerr << "Computing the inital cutset size..." << endl;
-	int cutset = computeCutset(C, V);
-	cerr << "Initial cutset: " << cutset << endl << endl;
+	int cutset = C.computeCutset(V);
+	cerr << "Initial cutset: " << cutset << endl;
+	cerr << "Iteration cutset: " << cutset << endl;
+	cerr << "Generation cutset: " << cutset << endl;
 
 	int maxTotalGain = 1;
 	for(int generation = 0; maxTotalGain > 0; generation++) {
@@ -307,7 +310,7 @@ int main (int argc, char * const argv[]) {
 		
 		// Initialize the D values for all nodes
 		//cerr << "Initializing D values..." << endl;
-		initializeDValues(D, V, C);
+		C.initializeDValues(D, V);
 		/*
 		cerr << "D: ";
 		for(int i = 0; i < n; i++) {
@@ -336,8 +339,9 @@ int main (int argc, char * const argv[]) {
 			// Recalculate D values for still-active nodes
 			if(iteration + 1 < n2) {
 				recalculateD(gi, C, V, D, locks);
+				
 				/*
-				 cerr << "D: ";
+				cerr << "D: ";
 				for(int i = 0; i < n; i++) {
 					char buffer[4]; sprintf(buffer, "%3d", D[i]);
 					cerr << buffer << " ";
@@ -353,7 +357,7 @@ int main (int argc, char * const argv[]) {
 			cerr << i << " (" << gi.indexA << "," << gi.indexB << "): " << gi.netGain << endl;
 		}
 		*/
-		cerr << "Best Iteration Gain: " << maxTotalGain << endl;
+		cerr << "Best Generation Gain: " << maxTotalGain << endl;
 		
 		// Apply the optimum subqueue
 		//cerr << "Applying the subqueue..." << endl;
@@ -362,6 +366,8 @@ int main (int argc, char * const argv[]) {
 				GainQueueItem gi = queue[i];
 				V[gi.indexA].flip();
 				V[gi.indexB].flip();
+				cutset -= gi.netGain;
+				cerr << "Iteration cutset: " << cutset << endl;
 			}
 			/*
 			cerr << "V: ";
@@ -372,18 +378,18 @@ int main (int argc, char * const argv[]) {
 			cerr << endl;
 			*/
 			
-			cutset -= maxTotalGain;
-			cerr << "Current cutset: " << cutset << endl << endl;
+			cerr << "Gereation cutset: " << cutset << endl;
 		}
 		// Unlock all nodes
 		locks.assign(n, false);
 		// Clear the queue
-		queue.clear();
-		
+		queue.clear();		
 	}
 	cutset -= maxTotalGain;
 	cerr << "Final cutset: " << cutset << endl;
+	//cerr << "Final cutset check: " << C.computeCutset(V) << endl;
 	
+	// Report the final output
 	cout << cutset << endl;
 
 	bool first = true;
