@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <map>
 using namespace std;
 
 // Step 1:
@@ -39,7 +40,7 @@ using namespace std;
 //   Endif
 
 class AdjacencyMatrix {
-	vector<unsigned short> C;
+	map<unsigned int, unsigned short> C;
 public:
 	int n;
 	AdjacencyMatrix(const char* filename) {
@@ -58,7 +59,6 @@ public:
 							cout << "Could not find number of nodes in file." << endl;
 							exit(1);
 						}
-						C.assign(n*n, 0);
 						stage = 1;
 						break;
 					case 1:
@@ -86,14 +86,19 @@ public:
 		else cout << "Unable to open file" << endl;
 	}
 	
-	unsigned short getCost(int i, int j) {
+	unsigned short getCost(int a, int b) {
 		// Only use the upper-triangular of the matrix
-		return C[min(i, j)*n+max(i, j)];
+		map<unsigned int, unsigned short>::iterator i;
+		i = C.find(min(a, b)*n+max(a, b));
+		if(i == C.end())
+			return 0;
+		else
+			return i->second;
 	}
 	
-	void setCost(int i, int j, bool b) {
+	void setCost(int a, int b, unsigned short c) {
 		// Only use the upper-triangular of the matrix
-		C[min(i, j)*n+max(i, j)] = b;
+		C[min(a, b)*n+max(a, b)] = c;
 	}
 	
 	void prettyPrint() {
