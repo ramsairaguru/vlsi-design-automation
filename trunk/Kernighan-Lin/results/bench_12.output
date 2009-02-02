@@ -1,0 +1,14 @@
+Using seed: 1233537456
+Reading file: benchmarks/bench_12.net
+Creating a random starting solution...
+Initial cutset: 2612
+
+Best Iteration Gain: 2205
+Current cutset: 407
+
+Best Iteration Gain: 372
+Current cutset: 35
+
+Best Iteration Gain: 0
+Final cutset: 35
+0.01u 0.01s 0:00.06 33.3%
