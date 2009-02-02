@@ -242,16 +242,26 @@ void recalculateD(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, Gain
 }
 
 int main (int argc, char * const argv[]) {
-	// Set the random seed
-	srand(720);
-	
-    // Parse the input file into the adjacency matrix
-	//cout << "Reading file..." << endl;
-	char* filename = "../../benchmarks/bench_23.net";
+	if(argc == 1) {
+		cerr << "Usage: " << argv[0] << "[[input_file] seed]"<< endl;
+		exit(0);
+	}
+	char* filename = "";
 	if(argc > 1)
 		filename = argv[1];
 	
+	long seed = time(NULL);
+	if(argc > 2)
+		seed = atoi(argv[2]);
+
+	// Set the random seed
+	srand(seed);
+	cerr << "Using seed: " << seed << endl;
+	
+	
 	// Declare Variables
+    // Parse the input file into the adjacency matrix
+	cerr << "Reading file: " << filename << endl;
 	AdjacencyMatrix C = AdjacencyMatrix(filename);
 	int n = C.n;
 	int n2 = (int)(n/2);
@@ -263,42 +273,45 @@ int main (int argc, char * const argv[]) {
 	//C.prettyPrint();
 
 	// Create a random starting solution
-	cout << "Creating a random starting solution..." << endl;
+	cerr << "Creating a random starting solution..." << endl;
 	randomizeVector(V);
 	/*
-	cout << "V: ";
+	cerr << "V: ";
 	for(int i = 0; i < n; i++) {
 		char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
-		cout << buffer << " ";
+		cerr << buffer << " ";
 	}
-	cout << endl;
+	cerr << endl;
 	*/
 	
+	int cutset = computeCutset(C, V);
+	cerr << "Initial cutset: " << cutset << endl << endl;
+
 	int maxTotalGain = 1;
 	for(int generation = 0; maxTotalGain > 0; generation++) {
-		//cout << "Initializing Generation Variables..." << endl;
+		//cerr << "Initializing Generation Variables..." << endl;
 		maxTotalGain = INT_MIN;
 		int maxTotalGainIndex = -1;
 		int currentTotalGain = 0;
 		
 		// Initialize the D values for all nodes
-		//cout << "Initializing D values..." << endl;
+		//cerr << "Initializing D values..." << endl;
 		initializeDValues(D, V, C);
 		/*
-		cout << "D: ";
+		cerr << "D: ";
 		for(int i = 0; i < n; i++) {
 			char buffer[4]; sprintf(buffer, "%3d", D[i]);
-			cout << buffer << " ";
+			cerr << buffer << " ";
 		}
-		cout << endl;
+		cerr << endl;
 		 */
 		
 		// Step 3 and 4
 		for(int iteration = 0; iteration < n2; iteration++) {
-			//cout << "Choosing best-gain pair..." << endl;
+			//cerr << "Choosing best-gain pair..." << endl;
 			GainQueueItem gi(0, 0, INT_MIN);
 			choosePairGreedy(gi, C, V, D, locks);
-			cout << "Chose: " << gi.indexA << "," << gi.indexB << ": " << gi.netGain << endl << endl;
+			//cerr << "Chosing: " << gi.indexA << ", " << gi.indexB << ": " << gi.netGain << endl << endl;
 			// Lock the selected nodes for this iteration
 			locks[gi.indexA] = true;
 			locks[gi.indexB] = true;
@@ -313,24 +326,26 @@ int main (int argc, char * const argv[]) {
 			if(iteration + 1 < n2) {
 				recalculateD(gi, C, V, D, locks);
 				/*
-				 cout << "D: ";
+				 cerr << "D: ";
 				for(int i = 0; i < n; i++) {
 					char buffer[4]; sprintf(buffer, "%3d", D[i]);
-					cout << buffer << " ";
+					cerr << buffer << " ";
 				}
-				cout << endl;
+				cerr << endl;
 				*/
 			}
 		}
-		cout << "Queue: " << endl;
+		/*
+		cerr << "Queue: " << endl;
 		for(int i = 0; i < queue.size(); i++) {
 			GainQueueItem gi = queue[i];
-			cout << i << " (" << gi.indexA << "," << gi.indexB << "): " << gi.netGain << endl;
+			cerr << i << " (" << gi.indexA << "," << gi.indexB << "): " << gi.netGain << endl;
 		}
-		cout << "Best Index: " << maxTotalGainIndex << "(" << maxTotalGain << ")" << endl;
+		*/
+		cerr << "Best Iteration Gain: " << maxTotalGain << endl;
 		
 		// Apply the optimum subqueue
-		//cout << "Applying the subqueue..." << endl;
+		//cerr << "Applying the subqueue..." << endl;
 		if(maxTotalGain > 0) {
 			for(int i = 0; i <= maxTotalGainIndex; i++) {
 				GainQueueItem gi = queue[i];
@@ -338,14 +353,16 @@ int main (int argc, char * const argv[]) {
 				V[gi.indexB].flip();
 			}
 			/*
-			cout << "V: ";
+			cerr << "V: ";
 			for(int i = 0; i < n; i++) {
 				char buffer[4]; sprintf(buffer, "%3d", (bool)V[i]);
-				cout << buffer << " ";
+				cerr << buffer << " ";
 			}
-			cout << endl;
+			cerr << endl;
 			*/
-			cout << "Current cutset: " << computeCutset(C, V) << endl << endl;
+			
+			cutset -= maxTotalGain;
+			cerr << "Current cutset: " << cutset << endl << endl;
 		}
 		// Unlock all nodes
 		locks.assign(n, false);
@@ -353,6 +370,34 @@ int main (int argc, char * const argv[]) {
 		queue.clear();
 		
 	}
-	cout << "Final cutset: " << computeCutset(C, V) << endl;
+	cutset -= maxTotalGain;
+	cerr << "Final cutset: " << cutset << endl;
+	
+	cout << cutset << endl;
+
+	bool first = true;
+	for(int i = 0; i < n; i++) {
+		if(!V[i]) {
+			if(!first)
+				cout << " ";
+			else
+				first = false;
+			cout << i;
+		}
+	}
+	cout << endl;
+	
+	first = true;
+	for(int i = 0; i < n; i++) {
+		if(V[i]) {
+			if(!first)
+				cout << " ";
+			else
+				first = false;
+			cout << i;
+		}
+	}
+	cout << endl;
+	
     return 0;
 }
