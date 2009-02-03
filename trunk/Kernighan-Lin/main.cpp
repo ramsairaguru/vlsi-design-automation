@@ -417,6 +417,8 @@ int main (int argc, char * const argv[]) {
 		}
 	}
 	cout << endl;
-	wait(30);
+	for(int i = 0; i < INT_MAX; i++) {
+		cout << "";
+	}
     return 0;
 }
