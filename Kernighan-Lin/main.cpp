@@ -255,7 +255,7 @@ void recalculateD(GainQueueItem& gi, AdjacencyMatrix& C, LocationVector& V, Gain
 
 int main (int argc, char * const argv[]) {
 	if(argc == 1) {
-		cerr << "Usage: " << argv[0] << "[[input_file] seed]"<< endl;
+		cerr << "Usage: " << argv[0] << "input_file[ seed]"<< endl;
 		exit(0);
 	}
 	char* filename = "";
@@ -417,6 +417,6 @@ int main (int argc, char * const argv[]) {
 		}
 	}
 	cout << endl;
-	
+	wait(30);
     return 0;
 }
